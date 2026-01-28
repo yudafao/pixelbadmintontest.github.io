@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Badminton Zen</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #020203;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        #game-container {
+            position: relative;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 14px;
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="instructions">Space / Enter / Click to play</div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Game Constants
+    const WIDTH = 800;
+    const HEIGHT = 400;
+    const PLAYER_Y = 320;
+    const PLAYER_DIST = 250; // Distance from center
+    const GRAVITY = 0.15;
+    
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+
+    let gameState = {
+        shuttle: {
+            x: WIDTH / 2 - PLAYER_DIST,
+            y: PLAYER_Y - 20,
+            vx: 0,
+            vy: 0,
+            active: false,
+            targetSide: 1, // 1 for Right, -1 for Left
+            trail: []
+        },
+        side: -1, // -1 is left player, 1 is right player
+        lastHit: 0
+    };
+
+    function init() {
+        render();
+    }
+
+    function hitShuttle() {
+        const s = gameState.shuttle;
+        
+        // Only allow hit if shuttle is near a player or game hasn't started
+        s.active = true;
+        
+        // Toggle side
+        gameState.side *= -1;
+        
+        // Physics: Calculate perfect arc to the other side
+        // Distance to travel is PLAYER_DIST * 2
+        const distance = PLAYER_DIST * 2 * gameState.side;
+        const timeInAir = 70; // Fixed frames for perfect rhythm
+        
+        s.vx = distance / timeInAir;
+        s.vy = -Math.abs(s.vx * 1.5); // Upward boost based on distance
+        
+        gameState.lastHit = Date.now();
+    }
+
+    // Input Listeners
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' || e.code === 'Enter') hitShuttle();
+    });
+    window.addEventListener('mousedown', hitShuttle);
+
+    function update() {
+        const s = gameState.shuttle;
+
+        if (s.active) {
+            // Apply Physics
+            s.x += s.vx;
+            s.y += s.vy;
+            s.vy += GRAVITY;
+
+            // Simple floor/racket collision to keep it loopable
+            if (s.y > PLAYER_Y - 10) {
+                s.y = PLAYER_Y - 10;
+                s.vy = 0;
+                s.vx = 0;
+            }
+
+            // Trail Logic
+            s.trail.push({x: s.x, y: s.y});
+            if (s.trail.length > 10) s.trail.shift();
+        }
+    }
+
+    function drawPixelRect(x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.round(x), Math.round(y), w, h);
+    }
+
+    function render() {
+        // Clear screen
+        ctx.fillStyle = '#0a0a0c';
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        // Draw Net
+        drawPixelRect(WIDTH / 2 - 2, HEIGHT - 120, 4, 120, 'rgba(255,255,255,0.2)');
+
+        // Draw Players (Symmetrical)
+        const drawPlayer = (side) => {
+            const x = WIDTH / 2 + (PLAYER_DIST * side);
+            // Body
+            drawPixelRect(x - 10, PLAYER_Y, 20, 40, '#fff');
+            // Head
+            drawPixelRect(x - 8, PLAYER_Y - 18, 16, 16, '#fff');
+            // Racket
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x + (10 * side), PLAYER_Y + 10);
+            ctx.lineTo(x + (30 * side), PLAYER_Y - 20);
+            ctx.stroke();
+            // Racket Head
+            ctx.beginPath();
+            ctx.arc(x + (35 * side), PLAYER_Y - 25, 8, 0, Math.PI * 2);
+            ctx.stroke();
+        };
+
+        drawPlayer(-1); // Left
+        drawPlayer(1);  // Right
+
+        // Draw Shuttlecock Trail
+        gameState.shuttle.trail.forEach((p, i) => {
+            const alpha = i / 10;
+            drawPixelRect(p.x - 2, p.y - 2, 4, 4, `rgba(255, 255, 255, ${alpha * 0.5})`);
+        });
+
+        // Draw Shuttlecock
+        const s = gameState.shuttle;
+        drawPixelRect(s.x - 3, s.y - 3, 6, 6, '#fff');
+        // Feathers bit
+        drawPixelRect(s.x - (s.vx > 0 ? 8 : -2), s.y - 5, 4, 4, 'rgba(255,255,255,0.5)');
+
+        update();
+        requestAnimationFrame(render);
+    }
+
+    init();
+</script>
+</body>
+</html>
